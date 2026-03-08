@@ -1,0 +1,25 @@
+# Secrets
+.env
+credentials/token.json
+credentials/client_secrets.json
+credentials/client_secrets_web.json
+
+# Database
+data/bot.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
