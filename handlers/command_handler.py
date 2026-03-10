@@ -17,21 +17,40 @@ logger = logging.getLogger(__name__)
 def _build_oauth_url(state: str) -> tuple[str, str | None]:
     """Build the Google OAuth authorization URL with the given state parameter.
 
-    Returns (auth_url, code_verifier). The code_verifier is needed for PKCE
-    and must be stored alongside the state for use during token exchange.
+    Returns (auth_url, code_verifier).
+    Raises ValueError with a descriptive message on misconfiguration.
     """
     from google_auth_oauthlib.flow import Flow
 
     secrets_path = os.getenv(
         "GOOGLE_CLIENT_SECRETS_PATH", "credentials/client_secrets_web.json"
     )
-    redirect_uri = os.getenv(
-        "OAUTH_REDIRECT_URI", "https://calbot.nawys.uz/oauth/callback"
-    )
+    redirect_uri = os.getenv("OAUTH_REDIRECT_URI", "")
 
-    # Load client secrets and determine the key ("web" or "installed")
+    if not redirect_uri:
+        raise ValueError(
+            "OAUTH_REDIRECT_URI is not set. "
+            "Add it to your .env file, e.g. OAUTH_REDIRECT_URI=https://yourdomain.com/oauth/callback, "
+            "and register the same URL as an authorized redirect URI in Google Cloud Console."
+        )
+
+    if not os.path.exists(secrets_path):
+        raise FileNotFoundError(
+            f"Google client secrets file not found: '{secrets_path}'. "
+            "Create a Web Application OAuth 2.0 client in Google Cloud Console, "
+            "download the JSON, and save it at that path (or set GOOGLE_CLIENT_SECRETS_PATH)."
+        )
+
     with open(secrets_path) as f:
         client_config = json.load(f)
+
+    # Validate that the secrets are for a Web Application, not a Desktop app
+    if "web" not in client_config and "installed" in client_config:
+        raise ValueError(
+            "The client secrets file is for a Desktop app ('installed' type). "
+            "The bot requires a Web Application OAuth 2.0 client. "
+            "Create a new OAuth 2.0 Client ID of type 'Web application' in Google Cloud Console."
+        )
 
     flow = Flow.from_client_config(
         client_config,
@@ -43,8 +62,7 @@ def _build_oauth_url(state: str) -> tuple[str, str | None]:
         prompt="consent",
         state=state,
     )
-    # flow.code_verifier is set by authorization_url() for PKCE
-    return auth_url, getattr(flow, "code_verifier", None)
+    return auth_url, None
 
 
 def _lang_keyboard(prefix: str = "lang") -> InlineKeyboardMarkup:

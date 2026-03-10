@@ -103,21 +103,30 @@ async def _handle_callback(request: web.Request) -> web.Response:
         secrets_path = os.getenv(
             "GOOGLE_CLIENT_SECRETS_PATH", "credentials/client_secrets_web.json"
         )
-        redirect_uri = os.getenv(
-            "OAUTH_REDIRECT_URI", "https://calbot.nawys.uz/oauth/callback"
-        )
+        redirect_uri = os.getenv("OAUTH_REDIRECT_URI", "")
+
+        if not redirect_uri:
+            raise ValueError("OAUTH_REDIRECT_URI is not configured on the server.")
+
+        if not os.path.exists(secrets_path):
+            raise FileNotFoundError(
+                f"Google client secrets file not found: '{secrets_path}'"
+            )
 
         with open(secrets_path) as f:
             client_config = json.load(f)
+
+        if "web" not in client_config and "installed" in client_config:
+            raise ValueError(
+                "Client secrets are for a Desktop app. "
+                "A Web Application OAuth 2.0 client is required."
+            )
 
         flow = Flow.from_client_config(
             client_config,
             scopes=["https://www.googleapis.com/auth/calendar"],
             redirect_uri=redirect_uri,
         )
-        # Restore PKCE code_verifier from the original authorization request
-        if code_verifier:
-            flow.code_verifier = code_verifier
         flow.fetch_token(code=code)
         creds = flow.credentials
     except Exception as e:

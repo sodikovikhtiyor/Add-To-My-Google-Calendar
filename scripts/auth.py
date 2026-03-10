@@ -1,50 +1,26 @@
 """
-Run this script once to authenticate with Google Calendar.
-It opens a browser window for the OAuth flow and saves the token to credentials/token.json.
+NOTE: This standalone script is no longer the way to authenticate.
 
-Usage:
-    python scripts/auth.py
+The bot now handles Google Calendar authentication directly via the /auth Telegram command,
+using a web-based OAuth flow (google_auth_oauthlib.flow.Flow) that stores tokens
+per-user in the SQLite database.
+
+To authenticate:
+  1. Start the bot: python bot.py
+  2. Send /start to the bot in Telegram (register if needed)
+  3. Send /auth to the bot — it will send you a Google authorization link
+  4. Click the link, complete the OAuth consent screen
+  5. You'll be redirected back and the bot will confirm the connection
+
+Requirements for /auth to work:
+  - GOOGLE_CLIENT_SECRETS_PATH: path to a Web Application OAuth 2.0 client secrets JSON
+    (NOT Desktop app — must be "Web application" type from Google Cloud Console)
+  - OAUTH_REDIRECT_URI: public HTTPS URL registered in Google Cloud Console,
+    e.g. https://yourdomain.com/oauth/callback
+  - The aiohttp callback server (web/oauth_server.py) must be reachable at that URL
 """
-import os
+
 import sys
 
-# Allow imports from the project root
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
-from dotenv import load_dotenv
-
-load_dotenv()
-
-from google_auth_oauthlib.flow import InstalledAppFlow
-
-SCOPES = ["https://www.googleapis.com/auth/calendar"]
-
-
-def main() -> None:
-    secrets_path = os.getenv("GOOGLE_CLIENT_SECRETS_PATH", "credentials/client_secrets.json")
-    token_path = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials/token.json")
-
-    if not os.path.exists(secrets_path):
-        print(f"Error: {secrets_path} not found.")
-        print()
-        print("Steps to fix:")
-        print("  1. Go to https://console.cloud.google.com/")
-        print("  2. Enable the Google Calendar API")
-        print("  3. Create an OAuth 2.0 Client ID (type: Desktop app)")
-        print(f"  4. Download the JSON and save it as: {secrets_path}")
-        sys.exit(1)
-
-    print("Opening browser for Google authorization...")
-    flow = InstalledAppFlow.from_client_secrets_file(secrets_path, SCOPES)
-    creds = flow.run_local_server(port=8080)
-
-    os.makedirs(os.path.dirname(token_path), exist_ok=True)
-    with open(token_path, "w") as f:
-        f.write(creds.to_json())
-
-    print(f"\nAuthentication successful! Token saved to: {token_path}")
-    print("You can now start the bot with: python bot.py")
-
-
-if __name__ == "__main__":
-    main()
+print(__doc__)
+sys.exit(0)
