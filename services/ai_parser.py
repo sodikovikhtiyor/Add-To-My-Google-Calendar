@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import base64
 import json
 import logging
 import os
@@ -54,6 +57,73 @@ If no clear event with a date/time is present, return exactly: {{"error": "no ev
 Today's date: {today}
 Current time: {now}
 """
+
+
+def parse_event_from_image(image_bytes: bytes, media_type: str = "image/jpeg", caption: str | None = None) -> Optional[Event]:
+    """Send an image to Claude vision and return a structured Event, or None."""
+    now = datetime.now()
+    system = _SYSTEM_PROMPT.format(
+        today=now.strftime("%Y-%m-%d"),
+        now=now.strftime("%H:%M"),
+    )
+
+    user_text = "Extract calendar event details from this image."
+    if caption:
+        user_text += f"\n\nAdditional context from the user: {caption}"
+
+    image_b64 = base64.standard_b64encode(image_bytes).decode()
+    response = _get_client().messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=512,
+        system=system,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": image_b64,
+                    },
+                },
+                {
+                    "type": "text",
+                    "text": user_text,
+                },
+            ],
+        }],
+    )
+
+    raw = response.content[0].text.strip()
+    logger.info("AI vision parser raw response: %s", raw)
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start == -1 or end == -1:
+        raise ValueError(f"No JSON object found in response: {raw[:100]}")
+    json_str = raw[start : end + 1]
+
+    data = json.loads(json_str)
+
+    if "error" in data:
+        return None
+
+    date_str = data["date"]
+    start_dt = datetime.strptime(f"{date_str} {data['start_time']}", "%Y-%m-%d %H:%M")
+
+    if data.get("end_time"):
+        end_dt = datetime.strptime(f"{date_str} {data['end_time']}", "%Y-%m-%d %H:%M")
+    else:
+        end_dt = start_dt + timedelta(hours=1)
+
+    return Event(
+        title=data["title"],
+        start_dt=start_dt,
+        end_dt=end_dt,
+        location=data.get("location"),
+        description=data.get("description"),
+    )
 
 
 def parse_event(text: str) -> Optional[Event]:

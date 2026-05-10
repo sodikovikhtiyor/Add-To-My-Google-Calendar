@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
@@ -16,7 +18,7 @@ from telegram.ext import ContextTypes
 import database
 from locales import detect_language, get_text
 from models.event import Event
-from services.ai_parser import parse_event
+from services.ai_parser import parse_event, parse_event_from_image
 from services.calendar_service import create_event, is_authenticated
 from services.transcription_service import transcribe_audio
 
@@ -171,6 +173,61 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     lang = await _get_lang(update, context)
     status = await update.message.reply_text(get_text("parsing", lang))
     await _process_event_text(update, context, text, status)
+
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle photo messages: read image with Claude vision, then parse event."""
+    telegram_id = update.effective_user.id
+
+    if not await _check_user_ready(update, telegram_id):
+        return
+
+    lang = await _get_lang(update, context)
+    status = await update.message.reply_text(get_text("reading_photo", lang))
+
+    photo = update.message.photo[-1]
+    try:
+        file = await photo.get_file()
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            tmp_path = tmp.name
+        await file.download_to_drive(tmp_path)
+    except Exception as e:
+        logger.error("Photo download error: %s", e)
+        await status.edit_text(get_text("photo_download_error", lang, error=e))
+        return
+
+    try:
+        with open(tmp_path, "rb") as f:
+            image_bytes = f.read()
+        caption = update.message.caption
+        event = await asyncio.to_thread(parse_event_from_image, image_bytes, caption=caption)
+    except Exception as e:
+        logger.error("AI vision parser error: %s", e)
+        await status.edit_text(get_text("parse_error", lang, error=e))
+        return
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    if event is None:
+        await status.edit_text(get_text("no_event_found", lang))
+        return
+
+    context.user_data[_PENDING_KEY] = event
+
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(get_text("btn_confirm", lang), callback_data="confirm"),
+            InlineKeyboardButton(get_text("btn_cancel", lang), callback_data="cancel"),
+        ]
+    ])
+    await status.edit_text(
+        _format_preview(event, lang),
+        reply_markup=keyboard,
+        parse_mode="Markdown",
+    )
 
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

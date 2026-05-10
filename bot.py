@@ -19,6 +19,8 @@ from telegram.ext import (
 
 import database
 from handlers.command_handler import (
+    admin_delete_user,
+    admin_list_users,
     auth_check,
     handle_lang_callback,
     handle_start_lang_callback,
@@ -26,7 +28,7 @@ from handlers.command_handler import (
     lang_command,
     start,
 )
-from handlers.message_handler import handle_confirmation, handle_contact, handle_message, handle_voice
+from handlers.message_handler import handle_confirmation, handle_contact, handle_message, handle_photo, handle_voice
 from web.oauth_server import start_oauth_server, stop_oauth_server
 
 logging.basicConfig(
@@ -77,11 +79,14 @@ def main() -> None:
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("auth", auth_check))
     app.add_handler(CommandHandler("lang", lang_command))
+    app.add_handler(CommandHandler("list_users", admin_list_users))
+    app.add_handler(CommandHandler("delete_user", admin_delete_user))
     app.add_handler(CallbackQueryHandler(handle_start_lang_callback, pattern=r"^start_lang:"))
     app.add_handler(CallbackQueryHandler(handle_lang_callback, pattern=r"^lang:"))
     app.add_handler(CallbackQueryHandler(handle_confirmation))
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(
         (filters.TEXT & ~filters.COMMAND) | filters.CAPTION,
         handle_message,
