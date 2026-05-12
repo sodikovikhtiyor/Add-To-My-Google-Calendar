@@ -10,6 +10,8 @@ Every public function opens and closes its own connection,
 making them safe to call via asyncio.to_thread().
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import sqlite3
@@ -51,7 +53,7 @@ def init_db() -> None:
                 name         TEXT NOT NULL,
                 username     TEXT,
                 phone        TEXT,
-                timezone     TEXT NOT NULL DEFAULT 'Europe/Moscow',
+                timezone     TEXT NOT NULL DEFAULT 'Asia/Tashkent',
                 language     TEXT NOT NULL DEFAULT 'en',
                 created_at   TEXT NOT NULL DEFAULT (datetime('now'))
             );
@@ -80,7 +82,7 @@ def init_db() -> None:
 def create_user(
     telegram_id: int,
     name: str,
-    timezone: str = "Europe/Moscow",
+    timezone: str = "Asia/Tashkent",
     username: str | None = None,
     language: str = "en",
 ) -> None:
@@ -130,6 +132,34 @@ def get_user(telegram_id: int) -> Optional[dict]:
             (telegram_id,),
         ).fetchone()
         return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def delete_user(telegram_id: int) -> bool:
+    """Delete a user and their Google token. Returns True if the user existed."""
+    conn = _connect()
+    try:
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("DELETE FROM google_tokens WHERE telegram_id = ?", (telegram_id,))
+        result = conn.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))
+        conn.commit()
+        existed = result.rowcount > 0
+        if existed:
+            logger.info("Deleted user %d", telegram_id)
+        return existed
+    finally:
+        conn.close()
+
+
+def list_users() -> list[dict]:
+    """Return all registered users."""
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT telegram_id, name, username, phone, language, created_at FROM users ORDER BY created_at DESC"
+        ).fetchall()
+        return [dict(row) for row in rows]
     finally:
         conn.close()
 

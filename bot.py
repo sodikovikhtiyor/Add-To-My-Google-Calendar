@@ -28,7 +28,16 @@ from handlers.command_handler import (
     lang_command,
     start,
 )
-from handlers.message_handler import handle_confirmation, handle_contact, handle_message, handle_photo, handle_voice
+from handlers.message_handler import (
+    handle_confirmation,
+    handle_contact,
+    handle_delete_confirmation,
+    handle_event_selection,
+    handle_message,
+    handle_photo,
+    handle_update_confirmation,
+    handle_voice,
+)
 from web.oauth_server import start_oauth_server, stop_oauth_server
 
 logging.basicConfig(
@@ -83,6 +92,9 @@ def main() -> None:
     app.add_handler(CommandHandler("delete_user", admin_delete_user))
     app.add_handler(CallbackQueryHandler(handle_start_lang_callback, pattern=r"^start_lang:"))
     app.add_handler(CallbackQueryHandler(handle_lang_callback, pattern=r"^lang:"))
+    app.add_handler(CallbackQueryHandler(handle_event_selection, pattern=r"^select_(update|delete):"))
+    app.add_handler(CallbackQueryHandler(handle_update_confirmation, pattern=r"^confirm_update$"))
+    app.add_handler(CallbackQueryHandler(handle_delete_confirmation, pattern=r"^confirm_delete:"))
     app.add_handler(CallbackQueryHandler(handle_confirmation))
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))

@@ -10,3 +10,4 @@ class Event:
     end_dt: datetime
     location: Optional[str] = None
     description: Optional[str] = None
+    event_id: Optional[str] = None

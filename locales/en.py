@@ -82,6 +82,10 @@ STRINGS: dict[str, str] = {
     "transcribe_error": "Failed to transcribe audio: {error}",
     "transcribed": "Transcribed: _{text}_\n\nParsing event details\u2026",
 
+    # ── Photo messages ────────────────────────────────────
+    "reading_photo": "Reading photo\u2026",
+    "photo_download_error": "Failed to download photo: {error}",
+
     # ── OAuth callback (HTML pages) ───────────────────────
     "oauth_success_title": "Authorization Successful!",
     "oauth_success_msg": "Your Google Calendar is now connected.",
@@ -99,4 +103,19 @@ STRINGS: dict[str, str] = {
     "lang_btn_en": "\U0001f1ec\U0001f1e7 English",
     "lang_btn_ru": "\U0001f1f7\U0001f1fa \u0420\u0443\u0441\u0441\u043a\u0438\u0439",
     "lang_btn_uz": "\U0001f1fa\U0001f1ff O\u2018zbekcha",
+
+    # \u2500\u2500 Update / delete events \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    "update_searching": "\U0001f50d Searching your calendar...",
+    "update_no_match": "No matching event found in your calendar.",
+    "update_multiple_matches": "Found {count} matching events. Which one?",
+    "update_preview_header": "Apply these changes?",
+    "confirm_update_btn": "\u2705 Update",
+    "updating_event": "\u23f3 Updating...",
+    "event_updated": "\u2705 Event updated! [View in Calendar]({link})",
+    "update_error": "Failed to update event: {error}",
+    "delete_preview": "\U0001f5d1 Delete this event?",
+    "confirm_delete_btn": "\U0001f5d1 Delete",
+    "deleting_event": "\U0001f5d1 Deleting...",
+    "event_deleted": "\u2705 Event deleted.",
+    "delete_error": "Failed to delete event: {error}",
 }

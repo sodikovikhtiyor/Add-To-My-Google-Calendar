@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -12,6 +14,8 @@ from locales import detect_language, get_text
 from services.calendar_service import is_authenticated
 
 logger = logging.getLogger(__name__)
+
+ADMIN_ID = int(os.getenv("ADMIN_TELEGRAM_ID", "6507257671"))
 
 
 def _build_oauth_url(state: str) -> tuple[str, str | None]:
@@ -156,6 +160,49 @@ async def lang_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         get_text("lang_prompt", lang),
         reply_markup=_lang_keyboard("lang"),
     )
+
+
+# ── Admin commands ──────────────────────────────────────
+
+async def admin_list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin-only: list all registered users."""
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    users = await asyncio.to_thread(database.list_users)
+    if not users:
+        await update.message.reply_text("No users registered.")
+        return
+
+    lines = ["<b>Registered users:</b>\n"]
+    for u in users:
+        username = f"@{u['username']}" if u["username"] else "—"
+        lines.append(
+            f"• <code>{u['telegram_id']}</code> | {u['name']} | {username} | {u['language']} | {u['created_at'][:10]}"
+        )
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def admin_delete_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin-only: /delete_user <telegram_id>"""
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if not context.args:
+        await update.message.reply_text("Usage: /delete_user <telegram_id>")
+        return
+
+    try:
+        target_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Invalid ID — must be a number.")
+        return
+
+    existed = await asyncio.to_thread(database.delete_user, target_id)
+    if existed:
+        await update.message.reply_text(f"User <code>{target_id}</code> deleted.", parse_mode="HTML")
+    else:
+        await update.message.reply_text(f"User <code>{target_id}</code> not found.", parse_mode="HTML")
 
 
 # ── Callback handlers ───────────────────────────────────

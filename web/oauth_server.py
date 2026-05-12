@@ -9,6 +9,7 @@ Flow:
   3. We look up the state -> telegram_id, exchange code for tokens,
      save tokens to DB, and notify the user in Telegram.
 """
+from __future__ import annotations
 
 import json
 import logging

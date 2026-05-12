@@ -82,6 +82,10 @@ STRINGS: dict[str, str] = {
     # ── Voice messages ────────────────────────────────────
     "transcribing": "Audio tanib olinmoqda\u2026",
     "voice_download_error": "Ovozli xabarni yuklab bo\u2018lmadi: {error}",
+
+    # ── Photo messages ────────────────────────────────────
+    "reading_photo": "Rasm o\u2018qilmoqda\u2026",
+    "photo_download_error": "Rasmni yuklab bo\u2018lmadi: {error}",
     "transcribe_error": "Audioni tanib bo\u2018lmadi: {error}",
     "transcribed": "Tanib olindi: _{text}_\n\nTadbir ma\u2019lumotlarini tahlil qilmoqda\u2026",
 
@@ -102,4 +106,19 @@ STRINGS: dict[str, str] = {
     "lang_btn_en": "\U0001f1ec\U0001f1e7 English",
     "lang_btn_ru": "\U0001f1f7\U0001f1fa \u0420\u0443\u0441\u0441\u043a\u0438\u0439",
     "lang_btn_uz": "\U0001f1fa\U0001f1ff O\u2018zbekcha",
+
+    # \u2500\u2500 Update / delete events \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    "update_searching": "\U0001f50d Kalendarda qidirmoqda\u2026",
+    "update_no_match": "Mos tadbir topilmadi.",
+    "update_multiple_matches": "{count} ta mos tadbir topildi. Qaysi birini tanlaysiz?",
+    "update_preview_header": "Bu o\u2018zgarishlarni qo\u2018llash kerakmi?",
+    "confirm_update_btn": "\u2705 Yangilash",
+    "updating_event": "\u23f3 Yangilanmoqda\u2026",
+    "event_updated": "\u2705 Tadbir yangilandi! [Kalendarda ochish]({link})",
+    "update_error": "Tadbirni yangilash muvaffaqiyatsiz bo\u2018ldi: {error}",
+    "delete_preview": "\U0001f5d1 Bu tadbirni o\u2018chirish kerakmi?",
+    "confirm_delete_btn": "\U0001f5d1 O\u2018chirish",
+    "deleting_event": "\U0001f5d1 O\u2018chirilmoqda\u2026",
+    "event_deleted": "\u2705 Tadbir o\u2018chirildi.",
+    "delete_error": "Tadbirni o\u2018chirib bo\u2018lmadi: {error}",
 }

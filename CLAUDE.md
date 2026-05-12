@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Purpose
 
-A Telegram bot that receives forwarded posts/messages, uses Claude AI to extract structured event data, confirms with the user, and creates events in Google Calendar.
+A multi-user Telegram bot that receives forwarded posts, voice messages, or typed text, uses Claude AI to extract structured event data, confirms with the user, and creates events in their Google Calendar.
 
 ## Commands
 
@@ -12,10 +12,7 @@ A Telegram bot that receives forwarded posts/messages, uses Claude AI to extract
 # Install dependencies
 pip install -r requirements.txt
 
-# One-time Google OAuth (opens browser, saves credentials/token.json)
-python scripts/auth.py
-
-# Run the bot
+# Run the bot (starts both Telegram polling and the OAuth callback server)
 python bot.py
 ```
 
@@ -23,45 +20,64 @@ python bot.py
 
 Copy `.env.example` to `.env` and fill in:
 - `TELEGRAM_BOT_TOKEN` — from @BotFather
-- `ANTHROPIC_API_KEY` — from console.anthropic.com
-- `GOOGLE_CLIENT_SECRETS_PATH` — path to OAuth client secrets JSON (default: `credentials/client_secrets.json`)
-- `GOOGLE_CREDENTIALS_PATH` — where the OAuth token is saved (default: `credentials/token.json`)
-- `TIMEZONE` — IANA timezone string (default: `Europe/Moscow`)
+- `ANTHROPIC_API_KEY` — Claude API key for event parsing
+- `GEMINI_API_KEY` — Google Gemini API key for voice transcription
+- `GOOGLE_CLIENT_SECRETS_PATH` — path to OAuth **Web application** client secrets JSON (default: `credentials/client_secrets_web.json`)
+- `OAUTH_REDIRECT_URI` — public HTTPS URL for the OAuth callback (default: `https://calbot.nawys.uz/oauth/callback`)
+- `OAUTH_SERVER_PORT` — port for the local OAuth callback server (default: `8080`)
+- `DATABASE_PATH` — SQLite database path (default: `data/bot.db`)
+- `TIMEZONE` — IANA timezone fallback (default: `Europe/Moscow`; per-user timezone stored in DB)
 
-Google OAuth requires: Calendar API enabled + OAuth 2.0 Client ID of type **Desktop app** in Google Cloud Console.
+Google Cloud Console requirements: Calendar API enabled + OAuth 2.0 Client ID of type **Web application** (not Desktop app). Add the `OAUTH_REDIRECT_URI` as an authorized redirect URI.
 
 ## Architecture
 
 ### Core Flow
 
 ```
-User message → handle_message → parse_event (Claude) → inline keyboard preview
-                                                              ↓ confirm
-                                                      create_event (Google Calendar)
-                                                              ↓
-                                                        event HTML link
+User message → handle_message ──────────────────────────────────────────────────────────────────┐
+User voice   → handle_voice → transcribe_audio (Gemini) ─────────────────────────────────────┐ │
+                                                                                               ↓ ↓
+                                                              _process_event_text → parse_event (Claude)
+                                                                    ↓
+                                                        inline keyboard preview (pending_event stored)
+                                                                    ↓ confirm
+                                                            create_event (Google Calendar API)
+                                                                    ↓
+                                                              event HTML link
 ```
 
 ### Module Responsibilities
 
 | Module | Responsibility |
 |---|---|
-| `bot.py` | Entry point; wires handlers to `Application` and starts polling |
-| `handlers/message_handler.py` | Receives text/forwarded messages; calls `parse_event`; stores pending `Event` in `context.user_data`; sends inline keyboard preview; `handle_confirmation` processes button callbacks |
-| `handlers/command_handler.py` | `/start`, `/help`, `/auth` (checks auth status only) |
-| `services/ai_parser.py` | Sends text to Claude with a structured JSON extraction prompt; strips markdown fences from response; returns `Event` or `None` |
-| `services/calendar_service.py` | Loads/refreshes Google OAuth token; `create_event()` calls Calendar API v3 |
+| `bot.py` | Entry point; wires all handlers; starts/stops OAuth server via lifecycle hooks; runs periodic `cleanup_states` job |
+| `database.py` | SQLite access layer (WAL mode); tables: `users`, `google_tokens`, `oauth_states`; every function opens/closes its own connection for `asyncio.to_thread` safety |
+| `handlers/message_handler.py` | Text/caption handler with registration intercepts; `handle_voice` for voice messages; `handle_contact` for phone sharing; `handle_confirmation` for inline button callbacks |
+| `handlers/command_handler.py` | `/start` (registration + language picker), `/help`, `/auth` (generates PKCE OAuth URL), `/lang`; callback handlers for `start_lang:` and `lang:` patterns |
+| `services/ai_parser.py` | Calls Claude (`claude-sonnet-4-6`) with a structured JSON extraction prompt; returns `Event` or `None` |
+| `services/calendar_service.py` | Loads per-user Google OAuth credentials from DB, auto-refreshes expired tokens, calls Calendar API v3 |
+| `services/transcription_service.py` | Uploads OGG audio to Gemini Files API (`gemini-2.5-flash`) and returns transcribed text |
+| `web/oauth_server.py` | aiohttp server on `OAUTH_SERVER_PORT`; handles `GET /oauth/callback`; exchanges code for tokens using PKCE; saves to DB; sends Telegram confirmation |
+| `locales/` | i18n strings for `en`, `ru`, `uz`; `detect_language()` maps Telegram `language_code` to supported lang |
 | `models/event.py` | `Event` dataclass: `title`, `start_dt`, `end_dt`, `location`, `description` |
-| `scripts/auth.py` | One-time interactive OAuth flow via local server on port 8080; run before starting the bot |
+
+### Multi-User OAuth Flow
+
+`/auth` generates a UUID state + PKCE code_verifier, stores them in `oauth_states` (expires in 10 min), and sends the user a Google authorization link. After the user authorizes, Google redirects to `OAUTH_REDIRECT_URI`, the aiohttp server exchanges the code for tokens (with PKCE), saves them to `google_tokens` keyed by `telegram_id`, and notifies the user in Telegram. `scripts/auth.py` is a legacy single-user helper — the bot itself handles OAuth end-to-end.
+
+### User Registration Flow
+
+New users: `/start` → language picker (inline keyboard, `start_lang:` prefix) → name (awaiting_name) → phone request (awaiting_phone, optional). State tracked in `context.user_data`. Users are stored in `users` table before any calendar interaction is allowed.
 
 ### Pending Event State
 
-After parsing, the `Event` is stored in `context.user_data["pending_event"]` (per-user, in-memory). The inline keyboard callback (`confirm` / `cancel`) retrieves and pops it. If the bot restarts, pending events are lost and the user must resend.
+After parsing, the `Event` is stored in `context.user_data["pending_event"]`. Inline keyboard callbacks (`confirm` / `cancel`) pop it. Lost on bot restart — user must resend.
 
 ### Async / Sync Boundary
 
-`calendar_service.py` and `ai_parser.py` are synchronous. Handlers call them via `asyncio.to_thread()` to avoid blocking the event loop.
+`database.py`, `calendar_service.py`, `ai_parser.py`, and `transcription_service.py` are all synchronous. Handlers call them via `asyncio.to_thread()`.
 
-### Auth Flow
+### Localization
 
-`scripts/auth.py` runs `InstalledAppFlow.run_local_server(port=8080)` — opens a browser, handles the OAuth redirect on localhost, and writes `credentials/token.json`. The bot's `/auth` command only checks whether the token exists and is valid; it does not trigger the OAuth flow.
+All user-facing strings go through `get_text(key, lang, **kwargs)`. Add new keys to all three locale files (`en.py`, `ru.py`, `uz.py`). Language is stored per-user in `users.language`; during registration it's temporarily held in `context.user_data["detected_lang"]`.
