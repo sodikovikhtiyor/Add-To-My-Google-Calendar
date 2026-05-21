@@ -30,6 +30,75 @@ _bot_token: str = ""
 
 # ── HTML templates ───────────────────────────────────────
 
+_PRIVACY_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy &amp; Data Use — ATMGC</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #222; }
+    h1 { font-size: 1.6em; } h2 { font-size: 1.15em; margin-top: 2em; }
+    a { color: #1a73e8; }
+  </style>
+</head>
+<body>
+  <h1>Privacy Policy &amp; Data Use Statement</h1>
+  <p><strong>Application:</strong> ATMGC — Add To My Google Calendar<br>
+     <strong>Project ID:</strong> calendar-bot-488812<br>
+     <strong>Last updated:</strong> May 21, 2026</p>
+
+  <h2>Google API Limited Use Disclosure</h2>
+  <p>
+    The use and transfer of information received from Google APIs to ATMGC will adhere to the
+    <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+    including the <strong>Limited Use requirements</strong>.
+  </p>
+  <p>Specifically, ATMGC:</p>
+  <ul>
+    <li>Uses Google Calendar data <strong>only</strong> to create calendar events explicitly requested by the user.</li>
+    <li>Does <strong>not</strong> share, sell, or transfer Google user data to any third party for advertising or other purposes unrelated to the app's core functionality.</li>
+    <li>Does <strong>not</strong> use Google user data to train, improve, or develop any AI or machine-learning models — including third-party AI models.</li>
+    <li>Does <strong>not</strong> allow humans to read Google user data unless the user explicitly requests support assistance, doing so is necessary for security purposes, or required by law.</li>
+  </ul>
+
+  <h2>Data We Access</h2>
+  <p>ATMGC requests the following Google OAuth scope:</p>
+  <ul>
+    <li><code>https://www.googleapis.com/auth/calendar</code> — used solely to create Google Calendar events on the authenticated user's behalf.</li>
+  </ul>
+  <p>No other Google account data is accessed, read, or stored.</p>
+
+  <h2>Third-Party AI Services</h2>
+  <p>ATMGC uses third-party AI services to process user-provided message text and voice recordings <em>before</em> creating a calendar event. These services receive only the content of messages the user directly sends to the bot:</p>
+  <ul>
+    <li><strong>Anthropic Claude</strong> (claude-sonnet-4-6) — parses natural language text to extract event details (title, date, time, location). No Google API data is passed to this service.</li>
+    <li><strong>Google Gemini</strong> (gemini-2.5-flash) — transcribes voice messages to text. Audio is uploaded temporarily via the Gemini Files API and is not retained. No Google Calendar data is passed to this service.</li>
+  </ul>
+  <p>
+    <strong>No data received from Google Workspace APIs is sent to, stored by, or used to train any AI model.</strong>
+    The AI services receive only the raw message text or audio provided directly by the user — not any data retrieved from Google Calendar or other Google services.
+  </p>
+
+  <h2>Data Retention</h2>
+  <ul>
+    <li>Google OAuth tokens are stored in an encrypted SQLite database on the server and used only to authenticate Calendar API calls on the user's behalf.</li>
+    <li>No calendar event data is retained after the event is created.</li>
+    <li>Users may revoke access at any time via their <a href="https://myaccount.google.com/permissions">Google Account permissions page</a>.</li>
+  </ul>
+
+  <h2>Contact</h2>
+  <p>For questions about data use or to request data deletion, contact: <a href="mailto:ihtiyor2655742@gmail.com">ihtiyor2655742@gmail.com</a></p>
+</body>
+</html>
+"""
+
+
+async def _handle_privacy(_request: web.Request) -> web.Response:
+    return web.Response(text=_PRIVACY_HTML, content_type="text/html")
+
+
 def _success_html(lang: str) -> str:
     return f"""\
 <!DOCTYPE html>
@@ -156,6 +225,7 @@ async def start_oauth_server(bot_token: str) -> None:
 
     app = web.Application()
     app.router.add_get("/oauth/callback", _handle_callback)
+    app.router.add_get("/privacy", _handle_privacy)
 
     port = int(os.getenv("OAUTH_SERVER_PORT", "8080"))
     _runner = web.AppRunner(app)
