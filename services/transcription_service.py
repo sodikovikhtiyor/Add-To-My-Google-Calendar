@@ -1,9 +1,11 @@
 import logging
 import os
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
+from google.api_core.exceptions import ServiceUnavailable, ResourceExhausted
 
 logger = logging.getLogger(__name__)
 
@@ -32,22 +34,29 @@ def transcribe_audio(file_path: str) -> str:
     Transcribe an audio file using Google Gemini API.
     Accepts OGG/Opus files directly. Returns the transcribed text.
     Raises RuntimeError if transcription produces empty text.
+    Retries up to 3 times on 503/429 with exponential backoff.
     """
     client = _get_client()
-
     audio_file = client.files.upload(file=file_path)
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=[
-            audio_file,
-            "Transcribe this audio exactly as spoken. "
-            "Return ONLY the transcription text, nothing else.",
-        ],
-    )
 
-    text = response.text.strip()
-    if not text:
-        raise RuntimeError("Transcription returned empty text")
-
-    logger.info("Transcribed audio (%s): %s", file_path, text[:200])
-    return text
+    delays = [5, 15, 30]
+    for attempt, delay in enumerate(delays, start=1):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    audio_file,
+                    "Transcribe this audio exactly as spoken. "
+                    "Return ONLY the transcription text, nothing else.",
+                ],
+            )
+            text = response.text.strip()
+            if not text:
+                raise RuntimeError("Transcription returned empty text")
+            logger.info("Transcribed audio (%s): %s", file_path, text[:200])
+            return text
+        except (ServiceUnavailable, ResourceExhausted) as e:
+            if attempt == len(delays):
+                raise
+            logger.warning("Gemini 503/429 on attempt %d, retrying in %ds: %s", attempt, delay, e)
+            time.sleep(delay)
